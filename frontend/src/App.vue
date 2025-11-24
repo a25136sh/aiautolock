@@ -11,8 +11,9 @@ const camera_url = ref("/api/blank")
 const fft_url = ref("/api/blank")
 const upload_timeout = ref()
 const UPLOAD_DELAY = 3000
-const target_frequency = ref(900)
-const threshold = ref(30)
+const target_frequency = ref(758)
+const threshold = ref(500)
+const detected = ref(false)
 
 const micOn = () => {
   recording.value = true
@@ -37,6 +38,13 @@ const micOn = () => {
               .then((response) => {
                 console.log(response)
                 fft_url.value = `/api/fft?${Math.random()}`
+                if (!detected.value && response.data.detected) {
+                  ElMessage({
+                    message: 'インターホンが鳴りました！',
+                    type: 'warning',
+                  })
+                }
+                detected.value = response.data.detected
               })
               .catch((err) => {
                 ElMessage.error({
@@ -102,7 +110,7 @@ const micOff = () => {
       <div>検知する周波数</div>
       <el-input-number v-model="target_frequency" :min="20" :max="20000" />
       <div>閾値</div>
-      <el-input-number v-model="threshold" :min="1" :max="200" />
+      <el-input-number v-model="threshold" :min="1" :max="2000" />
     </div>
   </div>
 </template>

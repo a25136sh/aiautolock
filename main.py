@@ -69,9 +69,20 @@ async def analyze_sound(
     threshold = 30
     if target_amplitude > threshold:
         result = f"検知！ 振幅: {target_amplitude:.2f} (閾値: {threshold:.2f})"
-        # ここに追加の反応（例: 音を再生、LED点灯など）を記述
+        detected = True
     else:
         result = f"不検知！ 振幅: {target_amplitude:.2f} (閾値: {threshold:.2f})"
+        detected = False
+
+    n_peaks = 1  # 抽出するピーク数
+    # インデックスを振幅の降順でソート
+    peak_indices = np.argsort(positive_fft)[::-1][:n_peaks]
+    peak_frequencies = positive_freqs[peak_indices]
+    peak_amplitudes = positive_fft[peak_indices]
+
+    result += "\n振幅がトップの周波数:"
+    for _, (freq, amp) in enumerate(zip(peak_frequencies, peak_amplitudes), 1):
+        result += f"\n周波数: {freq:.2f} Hz, 振幅: {amp:.2f}"
 
     # グラフ化
     plt.figure(figsize=(10, 6))
@@ -87,7 +98,10 @@ async def analyze_sound(
         tmp.write(buf.getvalue())
     plt.clf()
 
-    return result
+    return {
+        "detected": detected,
+        "message": result
+    }
 
 
 async def fetch_camera_frame():
