@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -8,6 +8,14 @@ api_app = FastAPI()
 @api_app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+
+@api_app.post("/analyze")
+async def analyze_sound(
+    file: UploadFile = File(...)
+):
+    file_content = await file.read()
+    return {"status": "ok"}
 
 
 app.mount("/api", api_app)

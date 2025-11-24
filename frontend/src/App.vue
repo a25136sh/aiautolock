@@ -7,6 +7,7 @@ import axios from 'axios'
 const recording = ref(false)
 const chunks = ref<Blob[]>([])
 const recorder = ref<MediaRecorder>()
+const UPLOAD_DELAY = 3000
 
 const upload = () => {
   if (recording.value) {
@@ -16,9 +17,10 @@ const upload = () => {
     params.append('file', file)
 
     axios
-      .post(`${import.meta.env.VITE_API_HOST}/api/analyze`, params)
+      .post(`/api/analyze`, params)
       .then((response) => {
         console.log(response)
+        setTimeout(upload, UPLOAD_DELAY)
       })
       .catch((err) => {
         ElMessage.error({
@@ -46,6 +48,7 @@ const micOn = () => {
         recorder.value.onstop = async () => {
           chunks.value = []
         }
+        setTimeout(upload, UPLOAD_DELAY)
       }
       recorder.value.start(1000)
     })
