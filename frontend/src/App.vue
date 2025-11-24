@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElNotification } from 'element-plus'
 import { Check, Microphone } from '@element-plus/icons-vue'
 import axios from 'axios'
+import moment from 'moment'
 
 const recording = ref(false)
 const chunks = ref<Blob[]>([])
@@ -12,7 +13,7 @@ const fft_url = ref("/api/blank")
 const upload_timeout = ref()
 const UPLOAD_DELAY = 3000
 const target_frequency = ref(758)
-const threshold = ref(500)
+const threshold = ref(300)
 const detected = ref(false)
 
 const micOn = () => {
@@ -43,6 +44,34 @@ const micOn = () => {
                     message: 'インターホンが鳴りました！',
                     type: 'warning',
                   })
+                  setTimeout(() => {
+                    axios
+                      .get(`/api/check`)
+                      .then((response) => {
+                        console.log(response)
+                        if (response.data.result == "ng") {
+                          ElNotification({
+                            title: '訪問者の通知',
+                            message: `顔が登録されていない訪問者がありました（${moment().calendar()}）`,
+                            duration: 0,
+                            type: 'info',
+                          })
+                        } else {
+                          ElNotification({
+                            title: '訪問者の通知',
+                            message: `登録されたユーザーがオートロックを鳴らしました（${moment().calendar()}）`,
+                            duration: 0,
+                            type: 'info',
+                          })
+                        }
+                      })
+                      .catch((err) => {
+                        ElMessage.error({
+                          message: '顔認証に失敗',
+                        })
+                        console.log(err)
+                      })
+                  }, 5000)
                 }
                 detected.value = response.data.detected
               })
@@ -85,11 +114,35 @@ const micOff = () => {
   recorder.value?.stop()
   clearTimeout(upload_timeout.value)
 }
+const register = () => {
+  axios
+    .get(`/api/register`)
+    .then((response) => {
+      console.log(response)
+      if (response.data == "ok") {
+        ElMessage({
+          message: '顔認識の登録に成功',
+          type: 'success',
+        })
+      } else {
+        ElMessage({
+          message: '顔が認識できませんでした',
+          type: 'warning',
+        })
+      }
+    })
+    .catch((err) => {
+      ElMessage.error({
+        message: '顔認識の登録に失敗',
+      })
+      console.log(err)
+    })
+}
 </script>
 
 <template>
   <div>
-    <el-image :src="camera_url" style="width: 640px; height: 480px; margin-bottom: 2em" />
+    <el-image :src="camera_url" style="width: 640px; height: 480px; margin-bottom: 1em" />
   </div>
   <div style="display: flex; justify-content: center;">
     <div>
@@ -111,6 +164,7 @@ const micOff = () => {
       <el-input-number v-model="target_frequency" :min="20" :max="20000" />
       <div>閾値</div>
       <el-input-number v-model="threshold" :min="1" :max="2000" />
+      <div style="margin-top: 1em;"><el-button @click="register">顔登録</el-button></div>
     </div>
   </div>
 </template>

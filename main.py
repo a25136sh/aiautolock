@@ -28,6 +28,11 @@ api_app = FastAPI()
 cap = None
 latest_frame = None
 fft_image = tempfile.NamedTemporaryFile(delete=False)
+face_detector = cv2.FaceDetectorYN_create(
+    "face_detection_yunet_2023mar.onnx", "", (0, 0)
+)
+face_recognizer = cv2.FaceRecognizerSF_create("face_recognizer_fast.onnx", "")
+user_file = "user.npy"
 
 
 @api_app.get("/")
@@ -148,6 +153,70 @@ async def get_blank_image():
 async def get_fft_image():
     global fft_image
     return FileResponse(fft_image.name)
+
+
+@api_app.get("/register")
+async def register_face():
+    global latest_frame
+    crop_ndarray = np.frombuffer(latest_frame, np.uint8)
+    decoded = cv2.imdecode(crop_ndarray, cv2.IMREAD_UNCHANGED)
+    print(decoded.shape)
+    height, width, _ = decoded.shape
+    face_detector.setInputSize((width, height))
+    _, faces = face_detector.detect(decoded)
+    faces = faces if faces is not None else []
+    if len(faces) > 0:
+        # 顔の切り抜き
+        aligned_face = face_recognizer.alignCrop(decoded, faces[0])
+        # 特徴量の抽出
+        face_feature = face_recognizer.feature(aligned_face)
+        # 特徴量ベクトルを保存
+        np.save(user_file, face_feature)
+        return "ok"
+    else:
+        return "ng"
+
+
+@api_app.get("/check")
+async def check_face():
+    global latest_frame
+    if os.path.exists(user_file):
+        user_face = np.load(user_file)
+        crop_ndarray = np.frombuffer(latest_frame, np.uint8)
+        decoded = cv2.imdecode(crop_ndarray, cv2.IMREAD_UNCHANGED)
+        print(decoded.shape)
+        height, width, _ = decoded.shape
+        face_detector.setInputSize((width, height))
+        _, faces = face_detector.detect(decoded)
+        faces = faces if faces is not None else []
+        if len(faces) > 0:
+            # 顔の切り抜き
+            aligned_face = face_recognizer.alignCrop(decoded, faces[0])
+            # 特徴量の抽出
+            face_feature = face_recognizer.feature(aligned_face)
+            score = face_recognizer.match(
+                user_face, face_feature, cv2.FaceRecognizerSF_FR_COSINE
+            )
+            if score > 0.2:
+                return {
+                    "result": "ok",
+                    "score": score
+                }
+            else:
+                return {
+                    "result": "ng",
+                    "score": score
+                }
+        else:
+            return {
+                "result": "ng",
+                "score": 0
+            }
+    else:
+        return {
+            "result": "ng",
+            "score": 0
+        }
 
 
 app.mount("/api", api_app)
