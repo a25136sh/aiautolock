@@ -7,33 +7,10 @@ import axios from 'axios'
 const recording = ref(false)
 const chunks = ref<Blob[]>([])
 const recorder = ref<MediaRecorder>()
+const camera_url = ref("/api/blank")
+const upload_timeout = ref()
 const UPLOAD_DELAY = 3000
 
-const upload = () => {
-  if (recording.value) {
-    const file = new File(chunks.value, 'temp.mp3')
-
-    const params = new FormData()
-    params.append('file', file)
-
-    axios
-      .post(`/api/analyze`, params)
-      .then((response) => {
-        console.log(response)
-        setTimeout(upload, UPLOAD_DELAY)
-      })
-      .catch((err) => {
-        ElMessage.error({
-          message: '音声ファイルのアップロードに失敗',
-        })
-        console.log(err)
-        recording.value = false
-      })
-      .finally(() => {
-        chunks.value = []
-      })
-  }
-}
 const micOn = () => {
   recording.value = true
   navigator.mediaDevices
@@ -46,11 +23,41 @@ const micOn = () => {
           chunks.value.push(blob)
         }
         recorder.value.onstop = async () => {
-          chunks.value = []
+          if (recording.value) {
+            const file = new File(chunks.value, 'temp.wav')
+
+            const params = new FormData()
+            params.append('file', file)
+
+            axios
+              .post(`/api/analyze`, params)
+              .then((response) => {
+                console.log(response)
+              })
+              .catch((err) => {
+                ElMessage.error({
+                  message: '音声ファイルのアップロードに失敗',
+                })
+                console.log(err)
+                recording.value = false
+              })
+              .finally(() => {
+                chunks.value = []
+                if (recording.value) {
+                  recorder.value?.start()
+                  upload_timeout.value = setTimeout(() => {
+                    recorder.value?.stop()
+                  }, UPLOAD_DELAY)
+                }
+              })
+          }
         }
-        setTimeout(upload, UPLOAD_DELAY)
       }
-      recorder.value.start(1000)
+      camera_url.value = "/api/camera"
+      recorder.value.start()
+      upload_timeout.value = setTimeout(() => {
+        recorder.value?.stop()
+      }, UPLOAD_DELAY)
     })
     .catch((err) => {
       console.log(err)
@@ -61,12 +68,16 @@ const micOn = () => {
     })
 }
 const micOff = () => {
+  camera_url.value = "/api/blank"
   recording.value = false
-  recorder.value?.stop()
+  clearTimeout(upload_timeout.value)
 }
 </script>
 
 <template>
+  <div>
+    <el-image :src="camera_url" style="width: 640px; height: 480px; margin-bottom: 2em" />
+  </div>
   <div>
     <el-button circle style="width: 10em; height: 10em">
       <el-icon size="100" v-if="!recording">
